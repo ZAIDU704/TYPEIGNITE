@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #090d16;
+    color: #f1f5f9;
+    user-select: none;
+    -webkit-user-select: none;
+    overflow-x: hidden;
+  }
+}
+
+.font-mono-racing {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Prevent accidental text selection during frantic race typing */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Custom speed bar and track gradients */
+.speed-gradient {
+  background: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #ec4899 100%);
+}
+
+.track-gradient {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

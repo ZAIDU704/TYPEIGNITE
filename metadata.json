@@ -1,0 +1,6 @@
+{
+  "name": "Typing Rush",
+  "description": "Type Fast. Race Smart. Win the Rush. A competitive 3D cartoon typing-racing game with RIVAL VOICE announcements, single player, and real-time multiplayer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
