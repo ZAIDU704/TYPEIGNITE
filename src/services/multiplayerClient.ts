@@ -6,60 +6,77 @@ class MultiplayerClient {
   private ws: WebSocket | null = null;
   private listeners: Map<string, Set<EventCallback>> = new Map();
   private isConnecting: boolean = false;
+  private connectPromise: Promise<void> | null = null;
   private reconnectTimer: any = null;
 
   public connect(): Promise<void> {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
       return Promise.resolve();
     }
 
-    return new Promise((resolve, reject) => {
-      this.isConnecting = true;
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}`;
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
 
-      try {
-        this.ws = new WebSocket(wsUrl);
+    this.isConnecting = true;
 
-        this.ws.onopen = () => {
-          this.isConnecting = false;
-          resolve();
-        };
+    this.connectPromise = new Promise((resolve, reject) => {
+      let settled = false;
+      const wsUrl = 'wss://typeignite-server.faxilafaxila9.workers.dev/ws';
 
-        this.ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type) {
-              const callbacks = this.listeners.get(data.type);
-              if (callbacks) {
-                callbacks.forEach(cb => cb(data));
-              }
-            }
-          } catch (err) {
-            console.error('Socket parse error:', err);
-          }
-        };
+      const socket = new WebSocket(wsUrl);
+      this.ws = socket;
 
-        this.ws.onerror = (err) => {
-          this.isConnecting = false;
-          const errorCallbacks = this.listeners.get('error');
-          if (errorCallbacks) {
-            errorCallbacks.forEach(cb => cb({ type: 'error', message: 'Connection error' }));
-          }
-        };
-
-        this.ws.onclose = () => {
-          this.isConnecting = false;
-          const closeCallbacks = this.listeners.get('close');
-          if (closeCallbacks) {
-            closeCallbacks.forEach(cb => cb({}));
-          }
-        };
-      } catch (err) {
+      const fail = (error: Error) => {
+        if (settled) return;
+        settled = true;
         this.isConnecting = false;
-        reject(err);
-      }
+        this.connectPromise = null;
+
+        const errorCallbacks = this.listeners.get('error');
+        errorCallbacks?.forEach(cb =>
+          cb({ type: 'error', message: error.message })
+        );
+
+        reject(error);
+      };
+
+      socket.onopen = () => {
+        if (settled) return;
+        settled = true;
+        this.isConnecting = false;
+        this.connectPromise = null;
+        resolve();
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type) {
+            const callbacks = this.listeners.get(data.type);
+            callbacks?.forEach(cb => cb(data));
+          }
+        } catch (err) {
+          console.error('Socket parse error:', err);
+        }
+      };
+
+      socket.onerror = () => {
+        fail(new Error('Connection error'));
+      };
+
+      socket.onclose = () => {
+        if (!settled) {
+          fail(new Error('Connection closed before opening'));
+        }
+
+        this.isConnecting = false;
+        const closeCallbacks = this.listeners.get('close');
+        closeCallbacks?.forEach(cb => cb({}));
+      };
     });
+
+    return this.connectPromise;
   }
 
   public on(event: string, cb: EventCallback): () => void {
