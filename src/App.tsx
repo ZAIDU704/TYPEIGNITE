@@ -246,6 +246,7 @@ export default function App() {
   // --- Multiplayer State ---
   const [multiplayerRoom, setMultiplayerRoom] = useState<MultiplayerRoomState | null>(null);
   const [selfPlayerId] = useState<string>(() => 'player_' + Math.random().toString(36).substring(2, 9));
+  const multiplayerUnsubscribersRef = useRef<Array<() => void>>([]);
 
   // Sync document.body.dataset.state for automated testing and diagnostics
   useEffect(() => {
@@ -466,32 +467,39 @@ export default function App() {
     setTimeout(() => setNetworkBanner(null), 4500);
   };
 
-  const handleCreateMultiplayer = async () => {
-    try {
-      await multiplayerClient.connect();
-      multiplayerClient.createRoom(selfPlayerId, preferences.username);
+  const clearMultiplayerListeners = () => {
+    multiplayerUnsubscribersRef.current.forEach((unsubscribe) => unsubscribe());
+    multiplayerUnsubscribersRef.current = [];
+  };
 
+  const registerMultiplayerListeners = (showLobbyOnUpdate: boolean) => {
+    clearMultiplayerListeners();
+
+    multiplayerUnsubscribersRef.current = [
       multiplayerClient.on('room_joined', (data) => {
         setMultiplayerRoom(data.roomState);
         setCurrentScreen('multiplayer_lobby');
-      });
+      }),
 
       multiplayerClient.on('room_updated', (data) => {
         setMultiplayerRoom(data.roomState);
-      });
+        if (showLobbyOnUpdate) {
+          setCurrentScreen('multiplayer_lobby');
+        }
+      }),
 
       multiplayerClient.on('countdown_start', (data) => {
         setCountdown(data.countdown);
-      });
+      }),
 
       multiplayerClient.on('countdown_tick', (data) => {
         setCountdown(data.countdown);
-      });
+      }),
 
       multiplayerClient.on('race_started', (data) => {
         setCountdown(null);
         startMultiplayerRaceSession(data.roomState);
-      });
+      }),
 
       multiplayerClient.on('progress_broadcast', (data) => {
         setRacers((prev) =>
@@ -508,15 +516,23 @@ export default function App() {
             return racer;
           })
         );
-      });
+      }),
 
       multiplayerClient.on('player_left', (data) => {
         setMultiplayerRoom(data.roomState);
-      });
+      }),
 
       multiplayerClient.on('error', (err) => {
         showMultiplayerError(err.message || 'Multiplayer error');
-      });
+      }),
+    ];
+  };
+
+  const handleCreateMultiplayer = async () => {
+    try {
+      await multiplayerClient.connect();
+      registerMultiplayerListeners(false);
+      multiplayerClient.createRoom(selfPlayerId, preferences.username);
     } catch (err) {
       showMultiplayerError('Could not connect to multiplayer server. Please try again.');
     }
@@ -525,46 +541,8 @@ export default function App() {
   const handleJoinMultiplayer = async (roomCode: string) => {
     try {
       await multiplayerClient.connect();
+      registerMultiplayerListeners(true);
       multiplayerClient.joinRoom(roomCode, selfPlayerId, preferences.username);
-
-      multiplayerClient.on('room_updated', (data) => {
-        setMultiplayerRoom(data.roomState);
-        setCurrentScreen('multiplayer_lobby');
-      });
-
-      multiplayerClient.on('countdown_start', (data) => {
-        setCountdown(data.countdown);
-      });
-
-      multiplayerClient.on('countdown_tick', (data) => {
-        setCountdown(data.countdown);
-      });
-
-      multiplayerClient.on('race_started', (data) => {
-        setCountdown(null);
-        startMultiplayerRaceSession(data.roomState);
-      });
-
-      multiplayerClient.on('progress_broadcast', (data) => {
-        setRacers((prev) =>
-          prev.map((racer) => {
-            if (racer.id === data.playerId) {
-              return {
-                ...racer,
-                progress: data.progress,
-                wpm: data.wpm,
-                accuracy: data.accuracy,
-                rank: data.rank,
-              };
-            }
-            return racer;
-          })
-        );
-      });
-
-      multiplayerClient.on('error', (err) => {
-        showMultiplayerError(err.message || 'Failed to join room');
-      });
     } catch (err) {
       showMultiplayerError('Could not connect to multiplayer server.');
     }
@@ -831,6 +809,7 @@ export default function App() {
     setTypingImpulse(undefined);
     if (raceMode === 'multiplayer') {
       multiplayerClient.leaveRoom();
+      clearMultiplayerListeners();
     }
     setRacers(createStartingGridRacers(preferences.username));
     setCurrentScreen('home');
