@@ -1,0 +1,39 @@
+
+name: Update Bun Lockfile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-lockfile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout multiplayer branch
+        uses: actions/checkout@v4
+        with:
+          ref: cloudflare-multiplayer
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Regenerate lockfile
+        run: bun install
+
+      - name: Commit updated lockfile
+        run: |
+          if git diff --quiet -- bun.lock; then
+            echo "No lockfile changes needed."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add bun.lock
+            git commit -m "Fix Bun lockfile dependency mismatch"
+            git push origin HEAD:cloudflare-multiplayer
+          fi
+          
